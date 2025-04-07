@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Accelerometer with H-Style Mass Fingers</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+    canvas {
+      display: block;
+      background: #fff;
+    }
+    #info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      color: #000;
+      padding: 10px;
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="info">
+  <p><strong>Accelerometer with H-Style Mass Fingers</strong></p>
+  <p>Drag the device frame horizontally. It auto-resets after 5 seconds of inactivity.</p>
+  <p>Capacitance: <span id="capacitance">-</span> | Acceleration: <span id="accel">-</span></p>
+</div>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const capacitanceDiv = document.getElementById('capacitance');
+const accelDiv = document.getElementById('accel');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Device frame parameters
+let deviceX = canvas.width / 2; 
+const deviceY = canvas.height / 2;
+const frameWidth = 200;
+const frameHeight = 200;
+
+// Fixed sensor (frame) parameters – one finger per side
+const fixedSensorMargin = 10;
+const fixedFingerWidth = 10;
+const fixedFingerHeight = 50;
+
+// Proof mass parameters
+let massX = deviceX; // horizontal center of the mass
+const massY = deviceY;
+const massWidth = 80;
+const massHeight = 60;
+let massVelX = 0;
+
+// Spring–damper simulation parameters
+const springK = 0.2;    // spring constant
+const damping = 0.3;    // damping factor
+const massValue = 1;
+
+const maxDisplacement = 30;
+
+
+let dx = 0;
+let accel = 0;
+let capacitance = 0;
+
+let lastInteractionTime = Date.now();
+let dragging = false;
+let dragOffsetX = 0;
+
+function updateInteractionTime() {
+  lastInteractionTime = Date.now();
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  updateInteractionTime();
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  if (
+    mouseX >= deviceX - frameWidth / 2 &&
+    mouseX <= deviceX + frameWidth / 2 &&
+    mouseY >= deviceY - frameHeight / 2 &&
+    mouseY <= deviceY + frameHeight / 2
+  ) {
+    dragging = true;
+    dragOffsetX = mouseX - deviceX;
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (dragging) {
+    updateInteractionTime();
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    deviceX = mouseX - dragOffsetX;
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  dragging = false;
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  updateInteractionTime();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const touchX = touch.clientX - rect.left;
+  const touchY = touch.clientY - rect.top;
+  if (
+    touchX >= deviceX - frameWidth / 2 &&
+    touchX <= deviceX + frameWidth / 2 &&
+    touchY >= deviceY - frameHeight / 2 &&
+    touchY <= deviceY + frameHeight / 2
+  ) {
+    dragging = true;
+    dragOffsetX = touchX - deviceX;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (dragging) {
+    updateInteractionTime();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const touchX = touch.clientX - rect.left;
+    deviceX = touchX - dragOffsetX;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+  dragging = false;
+});
+
+function drawSpring(x1, y1, x2, y2) {
+  const segments = 20;
+  const amplitude = 10;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  for (let i = 1; i < segments; i++) {
+    let t = i / segments;
+    let x = x1 + (x2 - x1) * t;
+
+    let y = y1 + amplitude * Math.sin(t * Math.PI * 4);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function updatePhysics() {
+  dx = massX - deviceX;  
+  if (Math.abs(dx) >= maxDisplacement) {
+    massX = Math.sign(dx) * maxDisplacement + deviceX;
+  }
+  if (Math.abs(dx) > maxDisplacement) {
+    dx = dx > 0 ? maxDisplacement : -maxDisplacement;
+  }
+  const force = -springK * dx;
+  accel = force / massValue;
+  massVelX = massVelX * damping + accel;
+  massX += massVelX;
+  capacitance = 200 / (30 + 2 - Math.abs(dx)) 
+
+  capacitanceDiv.textContent = capacitance.toFixed(2);
+  accelDiv.textContent = accel.toFixed(2);
+  
+  if (!dragging && Date.now() - lastInteractionTime >= 5000) {
+    deviceX = canvas.width / 2;
+    massX = canvas.width / 2;
+    massVelX = 0;
+    updateInteractionTime();
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const frameLeft = deviceX - frameWidth / 2;
+  const frameTop = deviceY - frameHeight / 2;
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 20;
+  ctx.strokeRect(frameLeft, frameTop, frameWidth, frameHeight);
+
+  const massTop = massY - massHeight / 2;
+  const massLeft = massX - massWidth / 2;
+
+  const fixedFingerX = frameLeft + frameWidth / 2 - fixedFingerWidth / 2;
+
+  ctx.fillStyle = '#666';
+
+  const topFixedY = frameTop + fixedSensorMargin;
+  ctx.fillRect(fixedFingerX, topFixedY, fixedFingerWidth, fixedFingerHeight);
+  const bottomFixedY = frameTop + frameHeight - fixedSensorMargin - fixedFingerHeight;
+  ctx.fillRect(fixedFingerX, bottomFixedY, fixedFingerWidth, fixedFingerHeight);
+
+
+  const springLeftStartX = frameLeft  + fixedSensorMargin;
+  const springLeftY = massTop + massHeight / 2; 
+  const massLeftEdge = massLeft;  
+
+  const springRightStartX = frameLeft + frameWidth - fixedSensorMargin;
+  const springRightY = massTop + massHeight / 2;
+  const massRightEdge = massLeft + massWidth;
+  
+  ctx.strokeStyle = '#aaa';
+  ctx.lineWidth = 2;
+  drawSpring(springLeftStartX, springLeftY, massLeftEdge, springLeftY);
+  drawSpring(springRightStartX, springRightY, massRightEdge, springRightY);
+
+  ctx.fillStyle = '#aaa';
+  ctx.fillRect(massLeft, massTop, massWidth, massHeight);
+
+
+  const massFingerWidth = 10;
+  const massFingerHeight = 50;
+
+  const leftFingerX = massLeft;  
+  const finger1Y = massTop - massFingerHeight ;
+  const finger2Y = massTop + (massHeight);
+  ctx.fillStyle = '#aaa';
+  ctx.fillRect(leftFingerX, finger1Y, massFingerWidth, massFingerHeight);
+  ctx.fillRect(leftFingerX, finger2Y, massFingerWidth, massFingerHeight);
+  
+  const rightFingerX = massLeft + massWidth - massFingerWidth;
+  ctx.fillRect(rightFingerX, finger1Y, massFingerWidth, massFingerHeight);
+  ctx.fillRect(rightFingerX, finger2Y, massFingerWidth, massFingerHeight);
+
+}
+
+function animate() {
+  updatePhysics();
+  render();
+  requestAnimationFrame(animate);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
