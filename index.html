@@ -23,7 +23,18 @@
       font-family: sans-serif;
       font-size: 14px;
     }
+    /* Reserve space at the bottom for the Plotly plot */
+    #accelerationPlot {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 300px;
+      background: #fff;
+    }
   </style>
+  <!-- Include Plotly library -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
 <canvas id="canvas"></canvas>
@@ -32,13 +43,15 @@
   <p>Drag the device frame horizontally. It auto-resets after 5 seconds of inactivity.</p>
   <p>Capacitance: <span id="capacitance">-</span> | Acceleration: <span id="accel">-</span></p>
 </div>
+<div id="accelerationPlot"></div>
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const capacitanceDiv = document.getElementById('capacitance');
 const accelDiv = document.getElementById('accel');
+// Adjust canvas height to leave space for the Plotly plot
 canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.height = window.innerHeight - 300;
 
 // Device frame parameters
 let deviceX = canvas.width / 2; 
@@ -64,7 +77,6 @@ const damping = 0.3;    // damping factor
 const massValue = 1;
 
 const maxDisplacement = 30;
-
 
 let dx = 0;
 let accel = 0;
@@ -148,13 +160,30 @@ function drawSpring(x1, y1, x2, y2) {
   for (let i = 1; i < segments; i++) {
     let t = i / segments;
     let x = x1 + (x2 - x1) * t;
-
     let y = y1 + amplitude * Math.sin(t * Math.PI * 4);
     ctx.lineTo(x, y);
   }
   ctx.lineTo(x2, y2);
   ctx.stroke();
 }
+
+let startTime = Date.now();
+
+// Initialize Plotly acceleration data
+var accelerationData = [{
+  x: [],
+  y: [],
+  mode: 'lines',
+  type: 'scatter',
+  line: { shape: 'spline' }
+}];
+var accelerationLayout = {
+  title: 'Acceleration over Time',
+  xaxis: { title: 'Time (s)' },
+  yaxis: { title: 'Acceleration' },
+  margin: { t: 40, b: 40 }
+};
+Plotly.newPlot('accelerationPlot', accelerationData, accelerationLayout);
 
 function updatePhysics() {
   dx = massX - deviceX;  
@@ -168,10 +197,17 @@ function updatePhysics() {
   accel = force / massValue;
   massVelX = massVelX * damping + accel;
   massX += massVelX;
-  capacitance = 200 / (30 + 2 - Math.abs(dx)) 
+  capacitance = 200 / (30 + 2 - Math.abs(dx));
 
   capacitanceDiv.textContent = capacitance.toFixed(2);
   accelDiv.textContent = accel.toFixed(2);
+  
+  // Update the Plotly plot using extendTraces for efficient streaming
+  let currentTime = (Date.now() - startTime) / 1000; // seconds since start
+  Plotly.extendTraces('accelerationPlot', {
+    x: [[currentTime]],
+    y: [[accel]]
+  }, [0], 300);
   
   if (!dragging && Date.now() - lastInteractionTime >= 5000) {
     deviceX = canvas.width / 2;
@@ -196,14 +232,12 @@ function render() {
   const fixedFingerX = frameLeft + frameWidth / 2 - fixedFingerWidth / 2;
 
   ctx.fillStyle = '#666';
-
   const topFixedY = frameTop + fixedSensorMargin;
   ctx.fillRect(fixedFingerX, topFixedY, fixedFingerWidth, fixedFingerHeight);
   const bottomFixedY = frameTop + frameHeight - fixedSensorMargin - fixedFingerHeight;
   ctx.fillRect(fixedFingerX, bottomFixedY, fixedFingerWidth, fixedFingerHeight);
 
-
-  const springLeftStartX = frameLeft  + fixedSensorMargin;
+  const springLeftStartX = frameLeft + fixedSensorMargin;
   const springLeftY = massTop + massHeight / 2; 
   const massLeftEdge = massLeft;  
 
@@ -219,21 +253,17 @@ function render() {
   ctx.fillStyle = '#aaa';
   ctx.fillRect(massLeft, massTop, massWidth, massHeight);
 
-
   const massFingerWidth = 10;
   const massFingerHeight = 50;
-
   const leftFingerX = massLeft;  
-  const finger1Y = massTop - massFingerHeight ;
-  const finger2Y = massTop + (massHeight);
-  ctx.fillStyle = '#aaa';
+  const finger1Y = massTop - massFingerHeight;
+  const finger2Y = massTop + massHeight;
   ctx.fillRect(leftFingerX, finger1Y, massFingerWidth, massFingerHeight);
   ctx.fillRect(leftFingerX, finger2Y, massFingerWidth, massFingerHeight);
   
   const rightFingerX = massLeft + massWidth - massFingerWidth;
   ctx.fillRect(rightFingerX, finger1Y, massFingerWidth, massFingerHeight);
   ctx.fillRect(rightFingerX, finger2Y, massFingerWidth, massFingerHeight);
-
 }
 
 function animate() {
@@ -245,7 +275,7 @@ animate();
 
 window.addEventListener('resize', () => {
   canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.height = window.innerHeight - 300;
 });
 </script>
 </body>
