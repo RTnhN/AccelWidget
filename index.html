@@ -72,9 +72,9 @@ const massHeight = 60;
 let massVelX = 0;
 
 // Spring–damper simulation parameters
-const springK = 0.2;    // spring constant
-const damping = 0.3;    // damping factor
-const massValue = 1;
+const springK = 20;    // spring constant
+const damping = 20;    // damping factor (per second)
+const massValue = 0.01;
 
 const maxDisplacement = 30;
 
@@ -168,6 +168,7 @@ function drawSpring(x1, y1, x2, y2) {
 }
 
 let startTime = Date.now();
+let lastFrameTime = Date.now();
 
 // Initialize Plotly acceleration data
 var accelerationData = [{
@@ -185,7 +186,7 @@ var accelerationLayout = {
 };
 Plotly.newPlot('accelerationPlot', accelerationData, accelerationLayout);
 
-function updatePhysics() {
+function updatePhysics(dt) {
   dx = massX - deviceX;  
   if (Math.abs(dx) >= maxDisplacement) {
     massX = Math.sign(dx) * maxDisplacement + deviceX;
@@ -195,15 +196,19 @@ function updatePhysics() {
   }
   const force = -springK * dx;
   accel = force / massValue;
-  massVelX = massVelX * damping + accel;
-  massX += massVelX;
+  // Integrate acceleration over dt to update velocity
+  massVelX += accel * dt;
+  // Apply damping (exponential decay)
+  massVelX *= Math.exp(-damping * dt);
+  // Update position using velocity and dt
+  massX += massVelX * dt;
+  
   capacitance = 200 / (30 + 2 - Math.abs(dx));
-
   capacitanceDiv.textContent = capacitance.toFixed(2);
   accelDiv.textContent = accel.toFixed(2);
   
   // Update the Plotly plot using extendTraces for efficient streaming
-  let currentTime = (Date.now() - startTime) / 1000; // seconds since start
+  let currentTime = (Date.now() - startTime) / 1000;
   Plotly.extendTraces('accelerationPlot', {
     x: [[currentTime]],
     y: [[accel]]
@@ -230,7 +235,6 @@ function render() {
   const massLeft = massX - massWidth / 2;
 
   const fixedFingerX = frameLeft + frameWidth / 2 - fixedFingerWidth / 2;
-
   ctx.fillStyle = '#666';
   const topFixedY = frameTop + fixedSensorMargin;
   ctx.fillRect(fixedFingerX, topFixedY, fixedFingerWidth, fixedFingerHeight);
@@ -267,7 +271,10 @@ function render() {
 }
 
 function animate() {
-  updatePhysics();
+  let now = Date.now();
+  let dt = (now - lastFrameTime) / 1000; // dt in seconds
+  lastFrameTime = now;
+  updatePhysics(dt);
   render();
   requestAnimationFrame(animate);
 }
