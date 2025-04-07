@@ -249,19 +249,29 @@ function render() {
 
   const frameLeft = deviceX - frameWidth / 2;
   const frameTop = deviceY - frameHeight / 2;
-  ctx.strokeStyle = '#666';
-  ctx.lineWidth = 20;
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 30;
   ctx.strokeRect(frameLeft, frameTop, frameWidth, frameHeight);
 
   const massTop = massY - massHeight / 2;
   const massLeft = massX - massWidth / 2;
 
   const fixedFingerX = frameLeft + frameWidth / 2 - fixedFingerWidth / 2;
-  ctx.fillStyle = '#666';
+  ctx.fillStyle = '#333';
   const topFixedY = frameTop + fixedSensorMargin;
   ctx.fillRect(fixedFingerX, topFixedY, fixedFingerWidth, fixedFingerHeight);
   const bottomFixedY = frameTop + frameHeight - fixedSensorMargin - fixedFingerHeight;
   ctx.fillRect(fixedFingerX, bottomFixedY, fixedFingerWidth, fixedFingerHeight);
+  ctx.save();
+  ctx.translate(deviceX, deviceY);
+  ctx.fillStyle = '#aaa';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Click and Drag Here', 0, frameHeight/2+5);
+  ctx.fillText('Click and Drag Here', 0, -frameHeight/2+5);
+  ctx.restore();
+  ctx.fillStyle = '#333';
+
 
   const springLeftStartX = frameLeft + fixedSensorMargin;
   const springLeftY = massTop + massHeight / 2; 
@@ -271,7 +281,7 @@ function render() {
   const springRightY = massTop + massHeight / 2;
   const massRightEdge = massLeft + massWidth;
   
-  ctx.strokeStyle = '#aaa';
+  ctx.strokeStyle = '#333';
   ctx.lineWidth = 2;
   drawSpring(springLeftStartX, springLeftY, massLeftEdge, springLeftY);
   drawSpring(springRightStartX, springRightY, massRightEdge, springRightY);
