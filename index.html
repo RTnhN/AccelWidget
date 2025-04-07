@@ -214,10 +214,14 @@ function updatePhysics(dt) {
     y: [[accel]]
   }, [0], 300);
   
-  if (!dragging && Date.now() - lastInteractionTime >= 5000) {
+  if (!dragging && Date.now() - lastInteractionTime >= 5000 && massX != canvas.width / 2) {
     deviceX = canvas.width / 2;
     massX = canvas.width / 2;
     massVelX = 0;
+    // Clear the acceleration data arrays and update the plot
+    accelerationData[0].x = [];
+    accelerationData[0].y = [];
+    Plotly.react('accelerationPlot', accelerationData, accelerationLayout);
     updateInteractionTime();
   }
 }
