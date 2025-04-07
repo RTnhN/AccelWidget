@@ -49,15 +49,23 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const capacitanceDiv = document.getElementById('capacitance');
 const accelDiv = document.getElementById('accel');
-// Adjust canvas height to leave space for the Plotly plot
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight - 300;
+
+// Adjust canvas size (reserve space for Plotly plot)
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight - 300;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
 // Device frame parameters
 let deviceX = canvas.width / 2; 
 const deviceY = canvas.height / 2;
 const frameWidth = 200;
 const frameHeight = 200;
+
+// For computing device velocity
+let previousDeviceX = deviceX;
 
 // Fixed sensor (frame) parameters – one finger per side
 const fixedSensorMargin = 10;
@@ -72,16 +80,14 @@ const massHeight = 60;
 let massVelX = 0;
 
 // Spring–damper simulation parameters
-const springK = 80;    // spring constant
-const damping = 40;    // damping factor (per second)
-const massValue = .1;
-
+const springK = 2;    // spring constant
+const damping = 1;    // damping coefficient (N per (m/s))
+const massValue = 0.1;
 const maxDisplacement = 30;
 
 let dx = 0;
 let accel = 0;
 let capacitance = 0;
-
 const accel_scaler = 24000;
 let printAccel = 0;
 
@@ -161,9 +167,9 @@ function drawSpring(x1, y1, x2, y2) {
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   for (let i = 1; i < segments; i++) {
-    let t = i / segments;
-    let x = x1 + (x2 - x1) * t;
-    let y = y1 + amplitude * Math.sin(t * Math.PI * 4);
+    const t = i / segments;
+    const x = x1 + (x2 - x1) * t;
+    const y = y1 + amplitude * Math.sin(t * Math.PI * 4);
     ctx.lineTo(x, y);
   }
   ctx.lineTo(x2, y2);
@@ -190,40 +196,47 @@ var accelerationLayout = {
 Plotly.newPlot('accelerationPlot', accelerationData, accelerationLayout);
 
 function updatePhysics(dt) {
-  dx = massX - deviceX;  
-  if (Math.abs(dx) >= maxDisplacement) {
-    massX = Math.sign(dx) * maxDisplacement + deviceX;
-  }
-  if (Math.abs(dx) > maxDisplacement) {
-    dx = dx > 0 ? maxDisplacement : -maxDisplacement;
-  }
-  const force = -springK * dx;
-  accel = force / massValue;
-  // Integrate acceleration over dt to update velocity
-  massVelX += accel * dt;
-  // Apply damping (exponential decay)
-  massVelX *= Math.exp(-damping * dt);
-  // Update position using velocity and dt
-  massX += massVelX * dt;
-
-  print_accel = accel / accel_scaler * 16;
+  // Calculate device velocity (finite difference approximation)
+  const deviceVelX = (deviceX - previousDeviceX) / dt;
+  previousDeviceX = deviceX;
   
+  // Compute relative displacement (dx) between mass and device frame
+  dx = massX - deviceX;
+
+    // Clamp dx to a maximum value to avoid excessive forces
+    if (Math.abs(dx) > maxDisplacement) {
+      dx = Math.sign(dx) * maxDisplacement;
+      massX = deviceX + dx;
+      massVelX = deviceVelX; // Align mass velocity with device when clamped
+    }
+  
+  // Calculate forces: spring force and damping force based on relative velocity
+  const springForce = -springK * dx;
+  const dampingForce = -damping * (massVelX - deviceVelX);
+  const totalForce = springForce + dampingForce;
+  
+  // Update acceleration, velocity, and mass position (Euler integration)
+  accel = totalForce / massValue;
+  massVelX += accel * dt;
+  massX += massVelX * dt;
+  
+  printAccel = accel / accel_scaler * 16;
+  
+  // Update info display
   capacitance = 200 / (30 + 2 - Math.abs(dx));
   capacitanceDiv.textContent = capacitance.toFixed(2);
-  accelDiv.textContent = print_accel.toFixed(2);
+  accelDiv.textContent = printAccel.toFixed(2);
   
-  // Update the Plotly plot using extendTraces for efficient streaming
-  let currentTime = (Date.now() - startTime) / 1000;
+  const currentTime = (Date.now() - startTime) / 1000;
   Plotly.extendTraces('accelerationPlot', {
     x: [[currentTime]],
-    y: [[print_accel]]
+    y: [[printAccel]]
   }, [0], 300);
   
-  if (!dragging && Date.now() - lastInteractionTime >= 5000 && massX != canvas.width / 2) {
+  if (!dragging && Date.now() - lastInteractionTime >= 5000) {
     deviceX = canvas.width / 2;
     massX = canvas.width / 2;
     massVelX = 0;
-    // Clear the acceleration data arrays and update the plot
     accelerationData[0].x = [];
     accelerationData[0].y = [];
     Plotly.react('accelerationPlot', accelerationData, accelerationLayout);
@@ -268,31 +281,26 @@ function render() {
 
   const massFingerWidth = 10;
   const massFingerHeight = 50;
-  const leftFingerX = massLeft;  
-  const finger1Y = massTop - massFingerHeight;
-  const finger2Y = massTop + massHeight;
-  ctx.fillRect(leftFingerX, finger1Y, massFingerWidth, massFingerHeight);
-  ctx.fillRect(leftFingerX, finger2Y, massFingerWidth, massFingerHeight);
+  const leftFingerX = massLeft;
+  const fingerTopY = massTop - massFingerHeight;
+  const fingerBottomY = massTop + massHeight;
+  ctx.fillRect(leftFingerX, fingerTopY, massFingerWidth, massFingerHeight);
+  ctx.fillRect(leftFingerX, fingerBottomY, massFingerWidth, massFingerHeight);
   
   const rightFingerX = massLeft + massWidth - massFingerWidth;
-  ctx.fillRect(rightFingerX, finger1Y, massFingerWidth, massFingerHeight);
-  ctx.fillRect(rightFingerX, finger2Y, massFingerWidth, massFingerHeight);
+  ctx.fillRect(rightFingerX, fingerTopY, massFingerWidth, massFingerHeight);
+  ctx.fillRect(rightFingerX, fingerBottomY, massFingerWidth, massFingerHeight);
 }
 
 function animate() {
-  let now = Date.now();
-  let dt = (now - lastFrameTime) / 1000; // dt in seconds
+  const now = Date.now();
+  const dt = (now - lastFrameTime) / 1000;
   lastFrameTime = now;
   updatePhysics(dt);
   render();
   requestAnimationFrame(animate);
 }
 animate();
-
-window.addEventListener('resize', () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight - 300;
-});
 </script>
 </body>
 </html>
