@@ -98,8 +98,6 @@ if (
 ) {
   dragging = true;
   dragOffsetX = touchX - deviceX;
-  atStart = false;
-  
 
 }
 e.preventDefault();
