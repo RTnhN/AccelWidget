@@ -183,7 +183,7 @@ function updatePhysics(dt) {
 
     printAccel = accel / accel_scaler * 16;
 
-    printAccel = printAccel < .001 ? 0 : printAccel
+    printAccel = Math.abs(printAccel) < .001 ? 0 : printAccel
 
     // Update info display
     capacitance = 200 / (30 + 2 - Math.abs(dx));
