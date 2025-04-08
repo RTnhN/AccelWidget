@@ -160,7 +160,7 @@ var accelerationLayout = {
     yaxis: { title: 'Acceleration' },
     margin: { t: 40, b: 40 }
 };
-Plotly.newPlot('accelerationPlot', accelerationData, accelerationLayout, {});
+Plotly.newPlot('accelerationPlot', accelerationData, accelerationLayout, {'displayModeBar': false});
 
 function updatePhysics(dt) {
     // Calculate device velocity (finite difference approximation)
