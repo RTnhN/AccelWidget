@@ -288,5 +288,7 @@ function animate() {
 }
 renderAccel();
 
+window.addEventListener('resize', () => { deviceX = canvasAccel.width / 2; massX = deviceX; renderAccel() } );
+
 
 animate();
