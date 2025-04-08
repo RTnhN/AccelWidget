@@ -72,6 +72,9 @@ canvasAccel.addEventListener('mousedown', (e) => {
 
 canvasAccel.addEventListener('mousemove', (e) => {
     if (dragging) {
+        if (atStart){
+            requestAnimationFrame(animate);
+        }
         updateInteractionTime();
         const rect = canvasAccel.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -104,7 +107,11 @@ canvasAccel.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 canvasAccel.addEventListener('touchmove', (e) => {
+
     if (dragging) {
+        if (atStart){
+            requestAnimationFrame(animate);
+        }
         updateInteractionTime();
         const touch = e.touches[0];
         const rect = canvasAccel.getBoundingClientRect();
@@ -275,7 +282,9 @@ function animate() {
     const dt = (now - lastFrameTime) / 1000;
     lastFrameTime = now;
     updatePhysics(dt);
-    requestAnimationFrame(animate);
+    if (!atStart){
+        requestAnimationFrame(animate);
+    }
 }
 renderAccel();
 
