@@ -76,6 +76,7 @@ canvasAccel.addEventListener('mousemove', (e) => {
         const rect = canvasAccel.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         deviceX = mouseX - dragOffsetX;
+        atStart = false;
 
     }
 });
@@ -110,6 +111,8 @@ canvasAccel.addEventListener('touchmove', (e) => {
         const rect = canvasAccel.getBoundingClientRect();
         const touchX = touch.clientX - rect.left;
         deviceX = touchX - dragOffsetX;
+        atStart = false;
+
 
     }
     e.preventDefault();
