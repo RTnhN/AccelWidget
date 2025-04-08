@@ -77,7 +77,6 @@ canvasAccel.addEventListener('mousemove', (e) => {
         const mouseX = e.clientX - rect.left;
         deviceX = mouseX - dragOffsetX;
         atStart = false;
-
     }
 });
 
@@ -199,12 +198,11 @@ function updatePhysics(dt) {
         deviceX = canvasAccel.width / 2;
         massX = canvasAccel.width / 2;
         massVelX = 0;
-        accelerationData[0].x = [0];
-        accelerationData[0].y = [0];
+        accelerationData[0].x = [];
+        accelerationData[0].y = [];
         Plotly.react('accelerationPlot', accelerationData, accelerationLayout);
         updateInteractionTime();
         atStart = true;
-        startTime = Date.now();
     } 
     if (!atStart) {
         Plotly.extendTraces('accelerationPlot', {
@@ -213,8 +211,6 @@ function updatePhysics(dt) {
         }, [0], numberOfPoints);
         renderAccel();
     }
-
-   
 }
 
 function renderAccel() {
