@@ -1,4 +1,4 @@
-const containerAccel = document.getElementById('acccelcontainer');
+const containerAccel = document.getElementById('accelcontainer');
 const canvasAccel = document.getElementById('canvasAccel');
 const ctxAccel = canvasAccel.getContext('2d');
 const capacitanceDiv = document.getElementById('capacitance');
