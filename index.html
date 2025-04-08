@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Accelerometer Simulator</title>
   <link rel="stylesheet" href="static/style.css">
-  <script defer src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <script defer src="static/script.js"></script>
+  
 </head>
 <body>
   <div id="accelcontainer">
@@ -18,5 +17,13 @@
     <canvas id="canvasAccel"></canvas>
     <div id="accelerationPlot"></div>
     </div>
+    <script  src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script  src="static/script.js"></script>
+    <script>
+      // Instantiate and start the simulation
+      const simulator = new AccelSimulator();
+      simulator.renderAccel();
+      simulator.animate();
+    </script>
 </body>
 </html>

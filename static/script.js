@@ -1,294 +1,320 @@
-const containerAccel = document.getElementById('accelcontainer');
-const canvasAccel = document.getElementById('canvasAccel');
-const ctxAccel = canvasAccel.getContext('2d');
-const capacitanceDiv = document.getElementById('capacitance');
-const accelDiv = document.getElementById('accel');
+class AccelSimulator {
+    constructor() {
+    // DOM elements
+    this.containerAccel = document.getElementById('accelcontainer');
+    this.canvasAccel = document.getElementById('canvasAccel');
+    this.ctxAccel = this.canvasAccel.getContext('2d');
+    this.capacitanceDiv = document.getElementById('capacitance');
+    this.accelDiv = document.getElementById('accel');
 
-// Adjust canvas size based on container dimensions (reserve 300px for Plotly plot)
-function resizeCanvasAccel() {
-    canvasAccel.width = containerAccel.clientWidth;
-    canvasAccel.height = containerAccel.clientHeight - 300;
-}
-resizeCanvasAccel();
-window.addEventListener('resize', resizeCanvasAccel);
+    // Device frame parameters
+    this.frameWidth = 200;
+    this.frameHeight = 200;
 
-// Device frame parameters
-let deviceX = canvasAccel.width / 2;
-const deviceY = canvasAccel.height / 2;
-const frameWidth = 200;
-const frameHeight = 200;
+    // Initial canvas sizing
+    this.resizeCanvasAccel();
 
-// For computing device velocity
-let previousDeviceX = deviceX;
+    // Device and proof mass state
+    this.deviceX = this.canvasAccel.width / 2;
+    this.deviceY = this.canvasAccel.height / 2;
+    this.previousDeviceX = this.deviceX;
+    this.fixedSensorMargin = 10;
+    this.fixedFingerWidth = 10;
+    this.fixedFingerHeight = 50;
 
-// Fixed sensor (frame) parameters one finger per side
-const fixedSensorMargin = 10;
-const fixedFingerWidth = 10;
-const fixedFingerHeight = 50;
+    // Proof mass parameters
+    this.massX = this.deviceX;
+    this.massY = this.deviceY;
+    this.massWidth = 80;
+    this.massHeight = 60;
+    this.massVelX = 0;
 
-// Proof mass parameters
-let massX = deviceX; // horizontal center of the mass
-const massY = deviceY;
-const massWidth = 80;
-const massHeight = 60;
-let massVelX = 0;
+    // Spring damper simulation parameters
+    this.springK = 5;       // spring constant
+    this.damping = 2;       // damping coefficient
+    this.massValue = 0.1;
+    this.maxDisplacement = 30;
 
-// Spring damper simulation parameters
-const springK = 5;    // spring constant
-const damping = 2;    // damping coefficient (N per (m/s))
-const massValue = 0.1;
-const maxDisplacement = 30;
+    // Simulation variables
+    this.dx = 0;
+    this.accel = 0;
+    this.capacitance = 0;
+    this.accel_scaler = 24000;
+    this.printAccel = 0;
+    this.lastInteractionTime = Date.now();
+    this.dragging = false;
+    this.dragOffsetX = 0;
+    this.atStart = true;
 
-let dx = 0;
-let accel = 0;
-let capacitance = 0;
-const accel_scaler = 24000;
-let printAccel = 0;
+    // Time variables for animation
+    this.startTime = Date.now();
+    this.lastFrameTime = Date.now();
 
-let lastInteractionTime = Date.now();
-let dragging = false;
-let dragOffsetX = 0;
-let atStart = true;
+    // Initialize Plotly acceleration data
+    this.accelerationData = [{
+        x: [],
+        y: [],
+        mode: 'lines',
+        type: 'scatter',
+        line: { shape: 'spline' }
+    }];
+    this.accelerationLayout = {
+        title: 'Acceleration over Time',
+        xaxis: { title: 'Time (s)' },
+        yaxis: { title: 'Acceleration' },
+        margin: { t: 40, b: 40 }
+    };
+    Plotly.newPlot('accelerationPlot', this.accelerationData, this.accelerationLayout, { 'displayModeBar': false });
 
-function updateInteractionTime() {
-    lastInteractionTime = Date.now();
-}
+    // Bind the event handlers
+    this.setupEventListeners();
+    }
 
-canvasAccel.addEventListener('mousedown', (e) => {
-    updateInteractionTime();
-    const rect = canvasAccel.getBoundingClientRect();
+    // Adjust canvas size based on container dimensions (reserve 300px for Plotly plot)
+    resizeCanvasAccel() {
+    this.canvasAccel.width = this.containerAccel.clientWidth;
+    this.canvasAccel.height = this.containerAccel.clientHeight - 300;
+    }
+
+    // Update the last time the user interacted with the canvas
+    updateInteractionTime() {
+    this.lastInteractionTime = Date.now();
+    }
+
+    // --- Event Handlers ---
+    handleMouseDown(e) {
+    this.updateInteractionTime();
+    const rect = this.canvasAccel.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     if (
-        mouseX >= deviceX - frameWidth / 2 - 50 &&
-        mouseX <= deviceX + frameWidth / 2 + 50 &&
-        mouseY >= deviceY - frameHeight / 2 - 50 &&
-        mouseY <= deviceY + frameHeight / 2 + 50
+        mouseX >= this.deviceX - this.frameWidth / 2 - 50 &&
+        mouseX <= this.deviceX + this.frameWidth / 2 + 50 &&
+        mouseY >= this.deviceY - this.frameHeight / 2 - 50 &&
+        mouseY <= this.deviceY + this.frameHeight / 2 + 50
     ) {
-        dragging = true;
-        dragOffsetX = mouseX - deviceX;
+        this.dragging = true;
+        this.dragOffsetX = mouseX - this.deviceX;
     }
-});
+    }
 
-canvasAccel.addEventListener('mousemove', (e) => {
-    if (dragging) {
-        if (atStart){
-            requestAnimationFrame(animate);
+    handleMouseMove(e) {
+    if (this.dragging) {
+        if (this.atStart) {
+        requestAnimationFrame(() => this.animate());
         }
-        updateInteractionTime();
-        const rect = canvasAccel.getBoundingClientRect();
+        this.updateInteractionTime();
+        const rect = this.canvasAccel.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
-        deviceX = mouseX - dragOffsetX;
-        atStart = false;
+        this.deviceX = mouseX - this.dragOffsetX;
+        this.atStart = false;
     }
-});
+    }
 
-canvasAccel.addEventListener('mouseup', () => {
-    dragging = false;
-});
+    handleMouseUp() {
+    this.dragging = false;
+    }
 
-canvasAccel.addEventListener('touchstart', (e) => {
-    updateInteractionTime();
+    handleTouchStart(e) {
+    this.updateInteractionTime();
     const touch = e.touches[0];
-    const rect = canvasAccel.getBoundingClientRect();
+    const rect = this.canvasAccel.getBoundingClientRect();
     const touchX = touch.clientX - rect.left;
     const touchY = touch.clientY - rect.top;
     if (
-        touchX >= deviceX - frameWidth / 2 - 50 &&
-        touchX <= deviceX + frameWidth / 2 + 50 &&
-        touchY >= deviceY - frameHeight / 2 - 50 &&
-        touchY <= deviceY + frameHeight / 2 + 50
+        touchX >= this.deviceX - this.frameWidth / 2 - 50 &&
+        touchX <= this.deviceX + this.frameWidth / 2 + 50 &&
+        touchY >= this.deviceY - this.frameHeight / 2 - 50 &&
+        touchY <= this.deviceY + this.frameHeight / 2 + 50
     ) {
-        dragging = true;
-        dragOffsetX = touchX - deviceX;
-
+        this.dragging = true;
+        this.dragOffsetX = touchX - this.deviceX;
     }
     e.preventDefault();
-}, { passive: false });
+    }
 
-canvasAccel.addEventListener('touchmove', (e) => {
-
-    if (dragging) {
-        if (atStart){
-            requestAnimationFrame(animate);
+    handleTouchMove(e) {
+    if (this.dragging) {
+        if (this.atStart) {
+        requestAnimationFrame(() => this.animate());
         }
-        updateInteractionTime();
+        this.updateInteractionTime();
         const touch = e.touches[0];
-        const rect = canvasAccel.getBoundingClientRect();
+        const rect = this.canvasAccel.getBoundingClientRect();
         const touchX = touch.clientX - rect.left;
-        deviceX = touchX - dragOffsetX;
-        atStart = false;
-
-
+        this.deviceX = touchX - this.dragOffsetX;
+        this.atStart = false;
     }
     e.preventDefault();
-}, { passive: false });
+    }
 
-canvasAccel.addEventListener('touchend', () => {
-    dragging = false;
-});
+    handleTouchEnd() {
+    this.dragging = false;
+    }
 
-function drawSpring(x1, y1, x2, y2) {
+    setupEventListeners() {
+    // Window resize event
+    window.addEventListener('resize', () => {
+        this.resizeCanvasAccel();
+        this.deviceX = this.canvasAccel.width / 2;
+        this.massX = this.deviceX;
+        this.renderAccel();
+    });
+
+    // Mouse events
+    this.canvasAccel.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+    this.canvasAccel.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    this.canvasAccel.addEventListener('mouseup', () => this.handleMouseUp());
+
+    // Touch events
+    this.canvasAccel.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+    this.canvasAccel.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+    this.canvasAccel.addEventListener('touchend', () => this.handleTouchEnd());
+    }
+
+    // --- Drawing and Simulation Functions ---
+    drawSpring(x1, y1, x2, y2) {
     const segments = 20;
     const amplitude = 10;
-    ctxAccel.beginPath();
-    ctxAccel.moveTo(x1, y1);
+    this.ctxAccel.beginPath();
+    this.ctxAccel.moveTo(x1, y1);
     for (let i = 1; i < segments; i++) {
         const t = i / segments;
         const x = x1 + (x2 - x1) * t;
         const y = y1 + amplitude * Math.sin(t * Math.PI * 4);
-        ctxAccel.lineTo(x, y);
+        this.ctxAccel.lineTo(x, y);
     }
-    ctxAccel.lineTo(x2, y2);
-    ctxAccel.stroke();
-}
+    this.ctxAccel.lineTo(x2, y2);
+    this.ctxAccel.stroke();
+    }
 
-let startTime = Date.now();
-let lastFrameTime = Date.now();
-
-// Initialize Plotly acceleration data
-var accelerationData = [{
-    x: [],
-    y: [],
-    mode: 'lines',
-    type: 'scatter',
-    line: { shape: 'spline' }
-}];
-var accelerationLayout = {
-    title: 'Acceleration over Time',
-    xaxis: { title: 'Time (s)' },
-    yaxis: { title: 'Acceleration' },
-    margin: { t: 40, b: 40 }
-};
-Plotly.newPlot('accelerationPlot', accelerationData, accelerationLayout, {'displayModeBar': false});
-
-function updatePhysics(dt) {
+    updatePhysics(dt) {
     // Calculate device velocity (finite difference approximation)
-    const deviceVelX = (deviceX - previousDeviceX) / dt;
-    previousDeviceX = deviceX;
+    const deviceVelX = (this.deviceX - this.previousDeviceX) / dt;
+    this.previousDeviceX = this.deviceX;
 
     // Compute relative displacement (dx) between mass and device frame
-    dx = massX - deviceX;
+    this.dx = this.massX - this.deviceX;
 
     // Clamp dx to a maximum value to avoid excessive forces
-    if (Math.abs(dx) > maxDisplacement) {
-        dx = Math.sign(dx) * maxDisplacement;
-        massX = deviceX + dx;
-        massVelX = deviceVelX; // Align mass velocity with device when clamped
+    if (Math.abs(this.dx) > this.maxDisplacement) {
+        this.dx = Math.sign(this.dx) * this.maxDisplacement;
+        this.massX = this.deviceX + this.dx;
+        this.massVelX = deviceVelX;
     }
 
     // Calculate forces: spring force and damping force based on relative velocity
-    const springForce = -springK * dx;
-    const dampingForce = -damping * (massVelX - deviceVelX);
+    const springForce = -this.springK * this.dx;
+    const dampingForce = -this.damping * (this.massVelX - deviceVelX);
     const totalForce = springForce + dampingForce;
 
     // Update acceleration, velocity, and mass position (Euler integration)
-    accel = totalForce / massValue;
-    massVelX += accel * dt;
-    massX += massVelX * dt;
+    this.accel = totalForce / this.massValue;
+    this.massVelX += this.accel * dt;
+    this.massX += this.massVelX * dt;
 
-    printAccel = accel / accel_scaler * 16;
-
-    printAccel = Math.abs(printAccel) < .001 ? 0 : printAccel
+    this.printAccel = this.accel / this.accel_scaler * 16;
+    this.printAccel = Math.abs(this.printAccel) < 0.001 ? 0 : this.printAccel;
 
     // Update info display
-    capacitance = 200 / (30 + 2 - Math.abs(dx));
-    capacitanceDiv.textContent = capacitance.toFixed(2);
-    accelDiv.textContent = printAccel.toFixed(2);
+    this.capacitance = 200 / (30 + 2 - Math.abs(this.dx));
+    this.capacitanceDiv.textContent = this.capacitance.toFixed(2);
+    this.accelDiv.textContent = this.printAccel.toFixed(2);
 
     const numberOfPoints = 100;
+    const currentTime = (Date.now() - this.startTime) / 1000;
 
-    const currentTime = (Date.now() - startTime) / 1000;
-
-
-    if (!dragging && Date.now() - lastInteractionTime >= 5000 && !atStart) {
-        deviceX = canvasAccel.width / 2;
-        massX = canvasAccel.width / 2;
-        massVelX = 0;
-        accelerationData[0].x = [];
-        accelerationData[0].y = [];
-        Plotly.react('accelerationPlot', accelerationData, accelerationLayout);
-        updateInteractionTime();
-        atStart = true;
-    } 
-    if (!atStart) {
-        Plotly.extendTraces('accelerationPlot', {
-            x: [[currentTime]],
-            y: [[printAccel]]
-        }, [0], numberOfPoints);
-        renderAccel();
+    if (!this.dragging && Date.now() - this.lastInteractionTime >= 5000 && !this.atStart) {
+        this.deviceX = this.canvasAccel.width / 2;
+        this.massX = this.canvasAccel.width / 2;
+        this.massVelX = 0;
+        this.accelerationData[0].x = [];
+        this.accelerationData[0].y = [];
+        Plotly.react('accelerationPlot', this.accelerationData, this.accelerationLayout);
+        this.updateInteractionTime();
+        this.atStart = true;
     }
-}
+    if (!this.atStart) {
+        Plotly.extendTraces('accelerationPlot', {
+        x: [[currentTime]],
+        y: [[this.printAccel]]
+        }, [0], numberOfPoints);
+        this.renderAccel();
+    }
+    }
 
-function renderAccel() {
-    ctxAccel.clearRect(0, 0, canvasAccel.width, canvasAccel.height);
+    renderAccel() {
+    this.ctxAccel.clearRect(0, 0, this.canvasAccel.width, this.canvasAccel.height);
 
-    const frameLeft = deviceX - frameWidth / 2;
-    const frameTop = deviceY - frameHeight / 2;
-    ctxAccel.strokeStyle = '#333';
-    ctxAccel.lineWidth = 30;
-    ctxAccel.strokeRect(frameLeft, frameTop, frameWidth, frameHeight);
+    // Draw device frame
+    const frameLeft = this.deviceX - this.frameWidth / 2;
+    const frameTop = this.deviceY - this.frameHeight / 2;
+    this.ctxAccel.strokeStyle = '#333';
+    this.ctxAccel.lineWidth = 30;
+    this.ctxAccel.strokeRect(frameLeft, frameTop, this.frameWidth, this.frameHeight);
 
-    const massTop = massY - massHeight / 2;
-    const massLeft = massX - massWidth / 2;
+    // Draw the mass
+    const massTop = this.massY - this.massHeight / 2;
+    const massLeft = this.massX - this.massWidth / 2;
 
-    const fixedFingerX = frameLeft + frameWidth / 2 - fixedFingerWidth / 2;
-    ctxAccel.fillStyle = '#333';
-    const topFixedY = frameTop + fixedSensorMargin;
-    ctxAccel.fillRect(fixedFingerX, topFixedY, fixedFingerWidth, fixedFingerHeight);
-    const bottomFixedY = frameTop + frameHeight - fixedSensorMargin - fixedFingerHeight;
-    ctxAccel.fillRect(fixedFingerX, bottomFixedY, fixedFingerWidth, fixedFingerHeight);
-    ctxAccel.save();
-    ctxAccel.translate(deviceX, deviceY);
-    ctxAccel.fillStyle = '#aaa';
-    ctxAccel.font = 'bold 18px sans-serif';
-    ctxAccel.textAlign = 'center';
-    ctxAccel.fillText('Click and Drag Here', 0, frameHeight / 2 + 5);
-    ctxAccel.fillText('Click and Drag Here', 0, -frameHeight / 2 + 5);
-    ctxAccel.restore();
-    ctxAccel.fillStyle = '#333';
+    // Draw fixed sensors (one finger per side)
+    const fixedFingerX = frameLeft + this.frameWidth / 2 - this.fixedFingerWidth / 2;
+    this.ctxAccel.fillStyle = '#333';
+    const topFixedY = frameTop + this.fixedSensorMargin;
+    this.ctxAccel.fillRect(fixedFingerX, topFixedY, this.fixedFingerWidth, this.fixedFingerHeight);
+    const bottomFixedY = frameTop + this.frameHeight - this.fixedSensorMargin - this.fixedFingerHeight;
+    this.ctxAccel.fillRect(fixedFingerX, bottomFixedY, this.fixedFingerWidth, this.fixedFingerHeight);
 
-    const springLeftStartX = frameLeft + fixedSensorMargin;
-    const springLeftY = massTop + massHeight / 2;
+    // Draw instruction text in the frame
+    this.ctxAccel.save();
+    this.ctxAccel.translate(this.deviceX, this.deviceY);
+    this.ctxAccel.fillStyle = '#aaa';
+    this.ctxAccel.font = 'bold 18px sans-serif';
+    this.ctxAccel.textAlign = 'center';
+    this.ctxAccel.fillText('Click and Drag Here', 0, this.frameHeight / 2 + 5);
+    this.ctxAccel.fillText('Click and Drag Here', 0, -this.frameHeight / 2 + 5);
+    this.ctxAccel.restore();
+    this.ctxAccel.fillStyle = '#333';
+
+    // Draw springs from frame to mass
+    const springLeftStartX = frameLeft + this.fixedSensorMargin;
+    const springLeftY = massTop + this.massHeight / 2;
     const massLeftEdge = massLeft;
 
-    const springRightStartX = frameLeft + frameWidth - fixedSensorMargin;
-    const springRightY = massTop + massHeight / 2;
-    const massRightEdge = massLeft + massWidth;
+    const springRightStartX = frameLeft + this.frameWidth - this.fixedSensorMargin;
+    const springRightY = massTop + this.massHeight / 2;
+    const massRightEdge = massLeft + this.massWidth;
 
-    ctxAccel.strokeStyle = '#333';
-    ctxAccel.lineWidth = 2;
-    drawSpring(springLeftStartX, springLeftY, massLeftEdge, springLeftY);
-    drawSpring(springRightStartX, springRightY, massRightEdge, springRightY);
+    this.ctxAccel.strokeStyle = '#333';
+    this.ctxAccel.lineWidth = 2;
+    this.drawSpring(springLeftStartX, springLeftY, massLeftEdge, springLeftY);
+    this.drawSpring(springRightStartX, springRightY, massRightEdge, springRightY);
 
-    ctxAccel.fillStyle = '#aaa';
-    ctxAccel.fillRect(massLeft, massTop, massWidth, massHeight);
+    // Draw the proof mass
+    this.ctxAccel.fillStyle = '#aaa';
+    this.ctxAccel.fillRect(massLeft, massTop, this.massWidth, this.massHeight);
 
+    // Draw mass "fingers"
     const massFingerWidth = 10;
     const massFingerHeight = 50;
     const leftFingerX = massLeft;
     const fingerTopY = massTop - massFingerHeight;
-    const fingerBottomY = massTop + massHeight;
-    ctxAccel.fillRect(leftFingerX, fingerTopY, massFingerWidth, massFingerHeight);
-    ctxAccel.fillRect(leftFingerX, fingerBottomY, massFingerWidth, massFingerHeight);
+    const fingerBottomY = massTop + this.massHeight;
+    this.ctxAccel.fillRect(leftFingerX, fingerTopY, massFingerWidth, massFingerHeight);
+    this.ctxAccel.fillRect(leftFingerX, fingerBottomY, massFingerWidth, massFingerHeight);
 
-    const rightFingerX = massLeft + massWidth - massFingerWidth;
-    ctxAccel.fillRect(rightFingerX, fingerTopY, massFingerWidth, massFingerHeight);
-    ctxAccel.fillRect(rightFingerX, fingerBottomY, massFingerWidth, massFingerHeight);
-}
+    const rightFingerX = massLeft + this.massWidth - massFingerWidth;
+    this.ctxAccel.fillRect(rightFingerX, fingerTopY, massFingerWidth, massFingerHeight);
+    this.ctxAccel.fillRect(rightFingerX, fingerBottomY, massFingerWidth, massFingerHeight);
+    }
 
-function animate() {
+    animate() {
     const now = Date.now();
-    const dt = (now - lastFrameTime) / 1000;
-    lastFrameTime = now;
-    updatePhysics(dt);
-    if (!atStart){
-        requestAnimationFrame(animate);
+    const dt = (now - this.lastFrameTime) / 1000;
+    this.lastFrameTime = now;
+    this.updatePhysics(dt);
+    if (!this.atStart) {
+        requestAnimationFrame(() => this.animate());
+    }
     }
 }
-renderAccel();
-
-window.addEventListener('resize', () => { deviceX = canvasAccel.width / 2; massX = deviceX; renderAccel() } );
-
-
-animate();
