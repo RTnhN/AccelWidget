@@ -233,6 +233,7 @@ class AccelSimulator {
         Plotly.react('accelerationPlot', this.accelerationData, this.accelerationLayout);
         this.updateInteractionTime();
         this.atStart = true;
+        this.renderAccel();
     }
     if (!this.atStart) {
         Plotly.extendTraces('accelerationPlot', {
