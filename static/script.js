@@ -190,22 +190,31 @@ function updatePhysics(dt) {
     capacitanceDiv.textContent = capacitance.toFixed(2);
     accelDiv.textContent = printAccel.toFixed(2);
 
+    const numberOfPoints = 100;
+
     const currentTime = (Date.now() - startTime) / 1000;
-    Plotly.extendTraces('accelerationPlot', {
-        x: [[currentTime]],
-        y: [[printAccel]]
-    }, [0], 100);
+
 
     if (!dragging && Date.now() - lastInteractionTime >= 5000 && !atStart) {
         deviceX = canvasAccel.width / 2;
         massX = canvasAccel.width / 2;
         massVelX = 0;
-        accelerationData[0].x = [];
-        accelerationData[0].y = [];
+        accelerationData[0].x = [0];
+        accelerationData[0].y = [0];
         Plotly.react('accelerationPlot', accelerationData, accelerationLayout);
         updateInteractionTime();
         atStart = true;
+        startTime = Date.now();
+    } 
+    if (!atStart) {
+        Plotly.extendTraces('accelerationPlot', {
+            x: [[currentTime]],
+            y: [[printAccel]]
+        }, [0], numberOfPoints);
+        renderAccel();
     }
+
+   
 }
 
 function renderAccel() {
@@ -270,9 +279,9 @@ function animate() {
     const dt = (now - lastFrameTime) / 1000;
     lastFrameTime = now;
     updatePhysics(dt);
-    renderAccel();
     requestAnimationFrame(animate);
 }
+renderAccel();
 
 
 animate();
